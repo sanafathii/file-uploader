@@ -8,7 +8,7 @@ export async function POST(req) {
         const data = await req.formData();
         const files = data.getAll("file");
 
-        if (!files.length) {
+        if (files.length === 0) {
             return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
         }
 
@@ -25,11 +25,24 @@ export async function POST(req) {
             "image/gif",
             "image/webp",
         ];
+
+        const MAX_SIZE = 10 * 1024 * 1024;
         const uploadedFiles = [];
+        const errors = [];
 
         for (const file of files) {
             if (!allowedTypes.includes(file.type)) {
-                return NextResponse.json({ error: `Invalid file type: ${file.name}` }, { status: 400 });
+                errors.push(
+                    `Invalid file type: ${file.name}. Allowed types: ${allowedTypes.join(
+            ", "
+          )}`
+                );
+                continue;
+            }
+
+            if (file.size > MAX_SIZE) {
+                errors.push(`File ${file.name} exceeds the 10MB size limit.`);
+                continue;
             }
 
             const bytes = await file.arrayBuffer();
@@ -40,7 +53,11 @@ export async function POST(req) {
             uploadedFiles.push(`/uploads/${file.name}`);
         }
 
-        return NextResponse.json({ message: "Images uploaded successfully", files: uploadedFiles }, { status: 200 });
+        if (errors.length > 0) {
+            return NextResponse.json({ error: "Some files failed to upload", details: errors }, { status: 400 });
+        }
+
+        return NextResponse.json({ message: "Files uploaded successfully", files: uploadedFiles }, { status: 200 });
     } catch (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
